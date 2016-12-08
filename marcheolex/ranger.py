@@ -32,9 +32,9 @@ from marcheolex.utilitaires import comp_infini
 
 def ranger(textes, cache):
     
-    logger.info(textes)
     for texte in textes:
-        
+
+        logger.debug("Texte à ranger : " + repr(texte))
         lire_code_xml(texte, cache)
 
 
@@ -68,128 +68,152 @@ def lire_code_xml(cle, cache):
 # Vérifier si le texte existe, et en fonction de cela ajouter ou mettre à jour
 def ranger_texte_xml(chemin_base, cidTexte, nature_attendue=None):
     
-    # Lecture brute du fichier XML texte/version
-    chemin_texte_version = os.path.join(chemin_base, 'texte', 'version', cidTexte + '.xml')
-    if not os.path.exists(chemin_texte_version):
-        raise Exception()
-    f_version = open(chemin_texte_version, 'r')
-    soup_version = BeautifulSoup(f_version.read(), 'xml')
-    version_META = soup_version.find('META')
-    version_META_COMMUN = version_META.find('META_COMMUN')
-    version_META_SPEC = version_META.find('META_SPEC')
-    version_META_TEXTE_CHRONICLE = version_META_SPEC.find('META_TEXTE_CHRONICLE')
-    version_META_TEXTE_VERSION = version_META_SPEC.find('META_TEXTE_VERSION')
-    
-    version_NATURE = version_META_COMMUN.find('NATURE').text
-    version_CID = version_META_TEXTE_CHRONICLE.find('CID').text
-    version_NOR = version_META_TEXTE_CHRONICLE.find('NOR').text
-    version_DATE_TEXTE = version_META_TEXTE_CHRONICLE.find('DATE_TEXTE').text
-    version_DATE_PUBLI = version_META_TEXTE_CHRONICLE.find('DATE_PUBLI').text
-    version_TITRE = version_META_TEXTE_VERSION.find('TITRE').text
-    version_TITREFULL = version_META_TEXTE_VERSION.find('TITREFULL').text
-    version_DATE_DEBUT = version_META_TEXTE_VERSION.find('DATE_DEBUT').text
-    version_DATE_FIN = version_META_TEXTE_VERSION.find('DATE_FIN').text
-    version_ETAT = version_META_TEXTE_VERSION.find('ETAT').text
-    
-    # Lecture brute du fichier XML texte/struct
-    chemin_texte_struct = os.path.join(chemin_base, 'texte', 'struct', cidTexte + '.xml')
-    if not os.path.exists(chemin_texte_struct):
-        raise Exception()
-    f_struct = open(chemin_texte_struct, 'r')
-    soup_struct = BeautifulSoup(f_struct.read(), 'xml')
-    struct_META = soup_struct.find('META')
-    struct_META_COMMUN = struct_META.find('META_COMMUN')
-    struct_META_SPEC = struct_META.find('META_SPEC')
-    struct_META_TEXTE_CHRONICLE = struct_META_SPEC.find('META_TEXTE_CHRONICLE')
-    struct_META_TEXTE_VERSION = struct_META_SPEC.find('META_TEXTE_VERSION')
-    struct_VERSIONS = soup_struct.find('VERSIONS')
-    struct_STRUCT = soup_struct.find('STRUCT')
-    
-    struct_NATURE = struct_META_COMMUN.find('NATURE').text
-    struct_CID = struct_META_TEXTE_CHRONICLE.find('CID').text
-    struct_NOR = struct_META_TEXTE_CHRONICLE.find('NOR').text
-    struct_DATE_TEXTE = struct_META_TEXTE_CHRONICLE.find('DATE_TEXTE').text
-    struct_DATE_PUBLI = struct_META_TEXTE_CHRONICLE.find('DATE_PUBLI').text
-    struct_VERSION = struct_VERSIONS.find_all('VERSION')
-    struct_VERSION_etat = struct_VERSION[0]['etat']
-    struct_LIEN_TXT = struct_VERSION[0].find('LIEN_TXT')
-    struct_LIEN_TXT_id = struct_LIEN_TXT['id']
-    struct_LIEN_TXT_debut = struct_LIEN_TXT['debut']
-    struct_LIEN_TXT_fin = struct_LIEN_TXT['fin']
-    struct_LIEN_ART = struct_STRUCT.find_all('LIEN_ART')
-    struct_LIEN_SECTION_TA = struct_STRUCT.find_all('LIEN_SECTION_TA')
-    
-    # Traitements de base
-    version_DATE_TEXTE = normalise_date(version_DATE_TEXTE)
-    version_DATE_PUBLI = normalise_date(version_DATE_PUBLI)
-    version_DATE_DEBUT = normalise_date(version_DATE_DEBUT)
-    version_DATE_FIN = normalise_date(version_DATE_FIN)
-    struct_DATE_TEXTE = normalise_date(struct_DATE_TEXTE)
-    struct_DATE_PUBLI = normalise_date(struct_DATE_PUBLI)
-    
-    # Vérifications
-    if not cidTexte == version_CID:
-        raise Exception()
-    #if nature_attendue and not version_NATURE == nature_attendue.upper() or not struct_NATURE == nature_attendue.upper():
-    #    raise Exception()
-    if not version_DATE_TEXTE == struct_DATE_TEXTE:
-        raise Exception()
-    if not version_DATE_PUBLI == struct_DATE_PUBLI:
-        raise Exception()
-    #if not len(struct_VERSION) == 1:  # texte/version ne peut avoir qu’une seule version, donc texte/struct également et elles doivent correspondre
-    #    raise Exception()
-    
-    # Enregistrement du Texte
-    # TODO gérer les mises à jour
-    try:
-        entree_texte = Texte.get(Texte.cid == version_CID)
-    except:
-        entree_texte = Texte.create(
-            cid=version_CID.upper(),
-            nor=version_NOR.upper(),
-            nature=version_NATURE.lower(),
-            date_publi=version_DATE_PUBLI,
-            date_texte=version_DATE_TEXTE,
-        )
-    
-    # Enregistrement de la Version_texte d’autorité
-    # TODO gérer les mises à jour
-    try:
-        entree_version_texte = Version_texte.get(Version_texte.texte == entree_texte)
-    except:
-        entree_version_texte = Version_texte.create(
-            texte=entree_texte,
-            titre=version_TITRE,
-            titre_long=version_TITREFULL,
-            etat_juridique=version_ETAT.lower(),
-            debut=version_DATE_DEBUT,
-            fin=version_DATE_FIN,
-            base=None
-        )
-    
-    # Recensement des dates de changement
-    dates_changement = set([version_DATE_DEBUT, version_DATE_FIN])
-    ensemble_versions_sections = set()
-    ensemble_articles = set()
-    
-    # Ajouter récursivement les sections et articles
-    dates_changement, ensemble_versions_section, ensemble_articles = ranger_sections_xml(chemin_base, struct_LIEN_SECTION_TA, struct_LIEN_ART, entree_texte, entree_version_texte, None, None, dates_changement, ensemble_versions_sections, ensemble_articles, cidTexte, 1)
-    print('')
-    
-    # Créer les versions de textes
-    dates_changement = list(dates_changement)
-    dates_changement.sort(cmp=comp_infini)
-    for i in range(len(dates_changement) - 1):
+    # Lecture brute du fichier XML
+    if cidTexte[0:4] == 'CNIL':
+        logger.debug("Texte CNIL détecté")
+        chemin_texte_version = chemin_base + '.xml'
+        logger.debug("Chemin du fichier : " + chemin_texte_version)
+        f_version = open(chemin_texte_version, 'r')
+        soup_text = BeautifulSoup(f_version.read(), 'xml')
+        logger.debug("Contenu de la variable soup_text du fichier " + chemin_texte_version + " : \n" + repr(soup_text))
+        text_META = soup_text.find('META')
+        text_META_COMMUN = soup_text.find('META_COMMUN')
+        text_META_SPEC = soup_text.find('META_SPEC')
+        text_META_CNIL = soup_text.find('META_CNIL')
+        text_ID = soup_text.find('ID')
+        text_TITRE = soup_text.find('TITRE')
+        text_TITREFULL = soup_text.find('TITREFULL')
+        text_NUMERO = soup_text.find('NUMERO')
+        text_NATURE_DELIB = soup_text.find('NATURE_DELIB')
+        text_DATE_TEXTE = soup_text.find('DATE_TEXTE')
+        text_ETAT_JURIDIQUE = soup_text.find('ETAT_JURIDIQUE')
+        text_CONTENU = soup_text.find('CONTENU')
+
+        #text_DATE_TEXTE = normalise_date(text_DATE_TEXTE)
+
+    else:
+        # Lecture brute du fichier XML texte/version
+        chemin_texte_version = os.path.join(chemin_base, 'texte', 'version', cidTexte + '.xml')
+        if not os.path.exists(chemin_texte_version):
+            raise Exception()
+        f_version = open(chemin_texte_version, 'r')
+        soup_version = BeautifulSoup(f_version.read(), 'xml')
+        version_META = soup_version.find('META')
+        version_META_COMMUN = version_META.find('META_COMMUN')
+        version_META_SPEC = version_META.find('META_SPEC')
+        version_META_TEXTE_CHRONICLE = version_META_SPEC.find('META_TEXTE_CHRONICLE')
+        version_META_TEXTE_VERSION = version_META_SPEC.find('META_TEXTE_VERSION')
+        
+        version_NATURE = version_META_COMMUN.find('NATURE').text
+        version_CID = version_META_TEXTE_CHRONICLE.find('CID').text
+        version_NOR = version_META_TEXTE_CHRONICLE.find('NOR').text
+        version_DATE_TEXTE = version_META_TEXTE_CHRONICLE.find('DATE_TEXTE').text
+        version_DATE_PUBLI = version_META_TEXTE_CHRONICLE.find('DATE_PUBLI').text
+        version_TITRE = version_META_TEXTE_VERSION.find('TITRE').text
+        version_TITREFULL = version_META_TEXTE_VERSION.find('TITREFULL').text
+        version_DATE_DEBUT = version_META_TEXTE_VERSION.find('DATE_DEBUT').text
+        version_DATE_FIN = version_META_TEXTE_VERSION.find('DATE_FIN').text
+        version_ETAT = version_META_TEXTE_VERSION.find('ETAT').text
+        
+        # Lecture brute du fichier XML texte/struct
+        chemin_texte_struct = os.path.join(chemin_base, 'texte', 'struct', cidTexte + '.xml')
+        if not os.path.exists(chemin_texte_struct):
+            raise Exception()
+        f_struct = open(chemin_texte_struct, 'r')
+        soup_struct = BeautifulSoup(f_struct.read(), 'xml')
+        struct_META = soup_struct.find('META')
+        struct_META_COMMUN = struct_META.find('META_COMMUN')
+        struct_META_SPEC = struct_META.find('META_SPEC')
+        struct_META_TEXTE_CHRONICLE = struct_META_SPEC.find('META_TEXTE_CHRONICLE')
+        struct_META_TEXTE_VERSION = struct_META_SPEC.find('META_TEXTE_VERSION')
+        struct_VERSIONS = soup_struct.find('VERSIONS')
+        struct_STRUCT = soup_struct.find('STRUCT')
+        
+        struct_NATURE = struct_META_COMMUN.find('NATURE').text
+        struct_CID = struct_META_TEXTE_CHRONICLE.find('CID').text
+        struct_NOR = struct_META_TEXTE_CHRONICLE.find('NOR').text
+        struct_DATE_TEXTE = struct_META_TEXTE_CHRONICLE.find('DATE_TEXTE').text
+        struct_DATE_PUBLI = struct_META_TEXTE_CHRONICLE.find('DATE_PUBLI').text
+        struct_VERSION = struct_VERSIONS.find_all('VERSION')
+        struct_VERSION_etat = struct_VERSION[0]['etat']
+        struct_LIEN_TXT = struct_VERSION[0].find('LIEN_TXT')
+        struct_LIEN_TXT_id = struct_LIEN_TXT['id']
+        struct_LIEN_TXT_debut = struct_LIEN_TXT['debut']
+        struct_LIEN_TXT_fin = struct_LIEN_TXT['fin']
+        struct_LIEN_ART = struct_STRUCT.find_all('LIEN_ART')
+        struct_LIEN_SECTION_TA = struct_STRUCT.find_all('LIEN_SECTION_TA')
+        
+        # Traitements de base
+        version_DATE_TEXTE = normalise_date(version_DATE_TEXTE)
+        version_DATE_PUBLI = normalise_date(version_DATE_PUBLI)
+        version_DATE_DEBUT = normalise_date(version_DATE_DEBUT)
+        version_DATE_FIN = normalise_date(version_DATE_FIN)
+        struct_DATE_TEXTE = normalise_date(struct_DATE_TEXTE)
+        struct_DATE_PUBLI = normalise_date(struct_DATE_PUBLI)
+        
+        # Vérifications
+        if not cidTexte == version_CID:
+            raise Exception()
+        #if nature_attendue and not version_NATURE == nature_attendue.upper() or not struct_NATURE == nature_attendue.upper():
+        #    raise Exception()
+        if not version_DATE_TEXTE == struct_DATE_TEXTE:
+            raise Exception()
+        if not version_DATE_PUBLI == struct_DATE_PUBLI:
+            raise Exception()
+        #if not len(struct_VERSION) == 1:  # texte/version ne peut avoir qu’une seule version, donc texte/struct également et elles doivent correspondre
+        #    raise Exception()
+        
+        # Enregistrement du Texte
         # TODO gérer les mises à jour
-        Version_texte.create(
-            texte=entree_texte,
-            titre=version_TITRE,
-            titre_long=version_TITREFULL,
-            etat_juridique=version_ETAT.lower(),
-            debut=dates_changement[i],
-            fin=dates_changement[i+1],
-            base=entree_version_texte
-        )
+        try:
+            entree_texte = Texte.get(Texte.cid == version_CID)
+        except:
+            entree_texte = Texte.create(
+                cid=version_CID.upper(),
+                nor=version_NOR.upper(),
+                nature=version_NATURE.lower(),
+                date_publi=version_DATE_PUBLI,
+                date_texte=version_DATE_TEXTE,
+            )
+        
+        # Enregistrement de la Version_texte d’autorité
+        # TODO gérer les mises à jour
+        try:
+            entree_version_texte = Version_texte.get(Version_texte.texte == entree_texte)
+        except:
+            entree_version_texte = Version_texte.create(
+                texte=entree_texte,
+                titre=version_TITRE,
+                titre_long=version_TITREFULL,
+                etat_juridique=version_ETAT.lower(),
+                debut=version_DATE_DEBUT,
+                fin=version_DATE_FIN,
+                base=None
+            )
+        
+        # Recensement des dates de changement
+        dates_changement = set([version_DATE_DEBUT, version_DATE_FIN])
+        ensemble_versions_sections = set()
+        ensemble_articles = set()
+        
+        # Ajouter récursivement les sections et articles
+        dates_changement, ensemble_versions_section, ensemble_articles = ranger_sections_xml(chemin_base, struct_LIEN_SECTION_TA, struct_LIEN_ART, entree_texte, entree_version_texte, None, None, dates_changement, ensemble_versions_sections, ensemble_articles, cidTexte, 1)
+        print('')
+        
+        # Créer les versions de textes
+        dates_changement = list(dates_changement)
+        dates_changement.sort(cmp=comp_infini)
+        for i in range(len(dates_changement) - 1):
+            # TODO gérer les mises à jour
+            Version_texte.create(
+                texte=entree_texte,
+                titre=version_TITRE,
+                titre_long=version_TITREFULL,
+                etat_juridique=version_ETAT.lower(),
+                debut=dates_changement[i],
+                fin=dates_changement[i+1],
+                base=entree_version_texte
+            )
 
 
 # Parcourir récursivement les sections
