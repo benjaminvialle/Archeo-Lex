@@ -24,7 +24,12 @@ Sur une page affichant les différences entre versions ([exemple](https://github
 
 ### Installation
 
-* Installer [Python](https://www.python.org)
+* Installer les paquets Debian (adapter pour les autres distributions) :
+  * python2.7-dev
+  * libxml2-dev
+  * libxslt1-dev
+  * libz
+  * git
 * Installer les paquets Python :
   * [beautifulsoup4](https://pypi.python.org/pypi/beautifulsoup4)
   * [docopt](https://pypi.python.org/pypi/docopt)
